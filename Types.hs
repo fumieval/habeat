@@ -22,6 +22,7 @@ module Types (
     , clock
     , beat
     , stateToMVar
+    , _BPM
     , module Control.Lens
     , module Control.Applicative
     , module Control.Monad
@@ -89,6 +90,9 @@ makeLenses ''World
 
 beat :: Traversal' World Int
 beat = playMode . traversed . _2
+
+_BPM :: Lens' World Double
+_BPM = lens (((44100*60/4)/) . fromIntegral . _clockDur) (\w b -> w { _clockDur = floor $ 44100 * 60 / 4 / b })
 
 stateToMVar :: MonadIO m => MVar s -> StateT s m a -> m a
 stateToMVar mv m = do

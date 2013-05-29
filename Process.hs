@@ -10,9 +10,9 @@ sampler path = do
     WAVE _ s <- getWAVEFile path
     let !s' = mkSample s
     let ar rs = let (x, xs) = maybe (zero, []) id (uncons rs)
-            in Vein $ \case
-            True -> return $! (x, ar (go s' xs))
-            False -> return $! (x, ar xs)
+            in Vein $ \i cont -> case i of
+                True -> cont x (ar (go s' xs))
+                False -> cont x (ar xs)
     return (ar [])    
     where
         go (x:xs) (y:ys) = x + y : go xs ys
@@ -32,7 +32,7 @@ runTrack :: StateT Track IO Wave
 runTrack = do
     v <- use trackVein
     p <- use pending
-    (w, v') <- lift $ runVein v (or p)
+    (w, v') <- lift $ runVein v (or p) ((return .) . (,))
     pending .= []
     trackVein .= v'
     return w

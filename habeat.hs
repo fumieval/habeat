@@ -103,11 +103,11 @@ loadProject path = do
             _endFlag = False
             , _uiMode = Master
             , _playMode = Nothing
-            , _clockDur = floor $ 44100 * 60 / (v ^?! key "bpm" . _Double) / 4
+            , _clockDur = undefined
             , _clock = 0
             , _tracks = IM.fromList ts
             , deviceId = v ^?! ix "device" . _Integer . from enum
-        }
+        } & _BPM .~ v ^?! ix "bpm" . _Double
 
 main :: IO ()
 main = getArgs >>= \case
