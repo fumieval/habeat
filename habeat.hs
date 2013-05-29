@@ -16,7 +16,6 @@ import Process
 import Interface
 import Data.Text.Lens
 import qualified Data.Aeson as JSON
-import System.Mem
 
 runBeat :: Int -> StateT World PadKontrol ()
 runBeat n = do
@@ -48,17 +47,16 @@ play runner mw b = do
 
 audioCallback :: (forall a. PadKontrol a -> IO a) -> MVar World -> StreamCallback CFloat CFloat
 audioCallback runner mw _ _ frames _ out = forM [0..fromIntegral frames-1] write >> return Continue where
-    write i = do
-
+    write bi = do
         V2 l r <- fmap (foldrOf folded (+) zero) $ do
             ts <- stateToMVar mw $ use tracks
             iforM ts $ \i s -> do
-                (a, s') <- flip runStateT s (runTrack i)
+                (a, s') <- flip runStateT s runTrack
                 stateToMVar mw $ tracks . ix i .= s'
                 return (a * view trackGain s)
 
-        pokeElemOff out (2 * i) l
-        pokeElemOff out (2 * i + 1) r
+        pokeElemOff out (2 * bi) l
+        pokeElemOff out (2 * bi + 1) r
 
         world <- readMVar mw
         case world ^. playMode of
@@ -66,9 +64,11 @@ audioCallback runner mw _ _ frames _ out = forM [0..fromIntegral frames-1] write
             Just (Record, b) -> play runner mw b
             _ -> return ()
 
+appMain :: MVar World -> IO (Either Error ())
 appMain mw = do
-    let devi = StreamParameters (PaDeviceIndex 5) 2 (PaTime 0.12)
-        devo = StreamParameters (PaDeviceIndex 5) 2 (PaTime 0.0)
+    -- let devi = StreamParameters (PaDeviceIndex 5) 2 (PaTime 0.12)
+    i <- fromIntegral <$> deviceId <$> readMVar mw
+    let devo = StreamParameters (PaDeviceIndex i) 2 (PaTime 0.0)
 
     withPortAudio $ runPadKontrol (acceptEvent mw)
         $ \runner -> withStream
@@ -106,8 +106,10 @@ loadProject path = do
             , _clockDur = floor $ 44100 * 60 / (v ^?! key "bpm" . _Double) / 4
             , _clock = 0
             , _tracks = IM.fromList ts
+            , deviceId = v ^?! ix "device" . _Integer . from enum
         }
 
+main :: IO ()
 main = getArgs >>= \case
     ("open" : path : _) -> loadProject path >>= newMVar >>= appMain >>= print
     ("devices" : _) -> void $ withPortAudio $ do
@@ -120,14 +122,4 @@ main = getArgs >>= \case
             putStrLn ""
 
         return (Right ())
-    {-
-    World { _tracks = IM.fromList $ [undefined, undefined, undefined, undefined] ++ zip [4..15] (repeat newEmptyTrack)
-        , _endFlag = False
-        , _uiMode = Master
-        , _playMode = Nothing
-        , _clock = 0
-        , _clockDur = 
-         }
-    -}
-    
-
+    _ -> putStrLn "Usage: habeat open [path] | habeat devices"

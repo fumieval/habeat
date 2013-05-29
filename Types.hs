@@ -2,6 +2,7 @@
 module Types (
     Wave
     , Track(..)
+    , trackName
     , pattern
     , trackVein
     , pending
@@ -64,6 +65,7 @@ _Pan f t = fmap (\p' -> t { _trackGain = if p' < 0.5
     V2 l r = _trackGain t
     p | l < r = (1 - r / l) / 2
       | r > l = (2 - l / r) / 2
+      | otherwise = undefined
 
 data UIMode = Master | SelectPart (Maybe Int) | EditPart Int
 
@@ -81,6 +83,7 @@ data World = World
     , _playMode :: Maybe (PlayMode, Int)
     , _clockDur :: Int
     , _clock :: Int
+    , deviceId :: Int
     }
 makeLenses ''World
 

@@ -33,7 +33,7 @@ acceptEvent mw _ event = stateToMVar mw $ do
                 Just (Record, i) -> do
                     c <- use clock
                     c' <- use clockDur
-                    if c < div c 2
+                    if c < div c' 2
                         then tracks . ix t . pattern . ix (succ i `mod` 16) .= True
                         else tracks . ix t . pattern . ix (i `mod` 16) .= True
                     tracks . ix t . tempMute .= True

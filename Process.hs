@@ -7,7 +7,7 @@ import Data.WAVE
 
 sampler :: FilePath -> IO (Vein IO Bool Wave)
 sampler path = do
-    WAVE h s <- getWAVEFile path
+    WAVE _ s <- getWAVEFile path
     let !s' = mkSample s
     let ar rs = let (x, xs) = maybe (zero, []) id (uncons rs)
             in Vein $ \case
@@ -23,12 +23,13 @@ sampler path = do
         mkSample [] = []
         mkSample ([l, r]: xs) = V2 (realToFrac (sampleToDouble l)) (realToFrac (sampleToDouble r)) : mkSample xs
         mkSample ([v]: xs) = V2 (realToFrac (sampleToDouble v)) (realToFrac (sampleToDouble v)) : mkSample xs 
+        mkSample _ = error "illegal sample"
 
 _dB :: Floating a => Iso' a a
 _dB = iso ((*20) . logBase 10) ((10 **) . (/ 20))
 
-runTrack :: Int -> StateT Track IO Wave
-runTrack i = do
+runTrack :: StateT Track IO Wave
+runTrack = do
     v <- use trackVein
     p <- use pending
     (w, v') <- lift $ runVein v (or p)

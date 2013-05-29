@@ -4,7 +4,6 @@ module PadKontrol (PadKontrol, runPadKontrol, module PadKontrol.Types, module Co
 import qualified System.MIDI as MIDI
 import PadKontrol.Types
 import Control.Applicative
-import Control.Concurrent
 import Control.Monad.Operational.Mini
 import Control.Monad.IO.Class
 import Data.Word
@@ -33,9 +32,10 @@ convertEvent (MIDI.MidiEvent time (MIDI.SysEx [_,_,_,_,0x49,0x01,v])) = Just (fr
 convertEvent (MIDI.MidiEvent time (MIDI.SysEx [_,_,_,_,0x4B,x,y])) = Just (fromIntegral time, XYPad (fromIntegral x / 127) (fromIntegral y / 127))
 convertEvent (MIDI.MidiEvent time (MIDI.SysEx [_,_,_,_,0x43,0x00,0x01])) = Just (fromIntegral time, JogCW)
 convertEvent (MIDI.MidiEvent time (MIDI.SysEx [_,_,_,_,0x43,0x00,0x7F])) = Just (fromIntegral time, JogCCW)
-convertEvent (MIDI.MidiEvent time (MIDI.SysEx [_,_,_,_,0x40,0x00,_])) = Nothing
-convertEvent (MIDI.MidiEvent time (MIDI.SysEx [_,_,_,_,0x5f,_,_])) = Nothing
-convertEvent (MIDI.MidiEvent _ (MIDI.SysEx xs)) = error $ "unknown event: " ++ unwords (map showHex xs)
+convertEvent (MIDI.MidiEvent _ (MIDI.SysEx [_,_,_,_,0x40,0x00,_])) = Nothing
+convertEvent (MIDI.MidiEvent _ (MIDI.SysEx [_,_,_,_,0x5f,_,_])) = Nothing
+convertEvent ev = error $ "unknown event: " ++ show ev
+
 
 runPadKontrol :: (Int -> Event -> Program Message ()) -> ((forall r. Program Message r -> IO r) -> IO a) -> IO a
 runPadKontrol handle m = do
@@ -64,7 +64,7 @@ runPadKontrol handle m = do
     MIDI.stop dest
     MIDI.close src
     MIDI.close dest
-    return undefined
+    return result
     where
         light :: Light -> Word8
         light Off = 0x00
