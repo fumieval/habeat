@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase, BangPatterns #-}
 module Process (sampler, runTrack) where
 import Types
-import Vein
+import Control.Vein
 import Linear
 import Data.WAVE
 

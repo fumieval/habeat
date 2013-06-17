@@ -34,7 +34,7 @@ import Foreign.C.Types
 import Control.Lens
 import Control.Applicative
 import Control.Monad
-import Vein
+import Control.Vein
 import qualified Data.Vector as V
 import Linear
 import qualified Data.IntMap as IM
@@ -46,7 +46,7 @@ type Wave = V2 CFloat
 
 data Track = Track
     { _trackName :: String
-    , _pattern :: V.Vector Bool
+    , _pattern :: [V.Vector Bool]
     , _trackVein :: Vein IO Bool Wave
     , _pending :: [Bool]
     , _trackGain :: V2 CFloat
@@ -81,6 +81,7 @@ data World = World
     { _tracks :: IM.IntMap Track
     , _endFlag :: Bool
     , _uiMode :: UIMode
+    , _cutoff :: Maybe CFloat
     , _playMode :: Maybe (PlayMode, Int)
     , _clockDur :: Int
     , _clock :: Int

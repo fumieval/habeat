@@ -11,14 +11,14 @@ import Control.Lens.Aeson
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Vector as V
 import Types
-import PadKontrol
+import UI.PadKontrol
 import Process
 import Interface
 import Data.Text.Lens
 import qualified Data.Aeson as JSON
 
-runBeat :: Int -> StateT World PadKontrol ()
-runBeat n = do
+runBeat :: Int -> Int -> StateT World PadKontrol ()
+runBeat bar n = do
     mode <- use uiMode
     case mode of
         EditPart _ -> padLight (toEnum n) (Flash 0)
@@ -26,7 +26,7 @@ runBeat n = do
     
     ts <- use tracks
     (>>=assign tracks) $ iforM ts $ \i s -> flip execStateT s $ do
-        Just b <- preuse $ pattern . ix n
+        Just b <- preuse $ pattern . ix bar . ix n
         when b $ do
             case mode of
                 Master -> padLight (toEnum i) (Flash 0)
@@ -41,15 +41,15 @@ play runner mw b = do
     world <- takeMVar mw
     if view clock world == 0
         then do
-            world' <- runner $ execStateT (runBeat b) world
-            putMVar mw $ world' & clock .~ view clockDur world & beat %~ (`mod`16) . (+1)
+            world' <- runner $ execStateT (runBeat 0 b) world
+            putMVar mw $ world' & clock .~ view clockDur world & beat %~ (`mod`16) . succ
     else putMVar mw $ world & clock -~ 1
 
 audioCallback :: (forall a. PadKontrol a -> IO a) -> MVar World -> StreamCallback CFloat CFloat
-audioCallback runner mw _ _ frames _ out = forM [0..fromIntegral frames-1] write >> return Continue where
+audioCallback runner mw _ _ frames _ out = forM_ [0..fromIntegral frames-1] write >> return Continue where
     write bi = do
-        V2 l r <- fmap (foldrOf folded (+) zero) $ do
-            ts <- stateToMVar mw $ use tracks
+        V2 l r <- fmap (IM.foldr (+) zero) $ do
+            ts <- view tracks <$> readMVar mw
             iforM ts $ \i s -> do
                 (a, s') <- flip runStateT s runTrack
                 stateToMVar mw $ tracks . ix i .= s'
@@ -95,7 +95,7 @@ loadProject path = do
             { _trackName = name ^. from packed
             , _trackVein = s
             , _pending = []
-            , _pattern = V.fromList $ t ^.. ix "pattern" . _Array . traversed . _Integer . to (/=0)
+            , _pattern = [V.fromList $ t ^.. ix "pattern" . _Array . traversed . _Integer . to (/=0)]
             , _trackGain = V2 (t ^?! ix "gainL" . _Double . to realToFrac) (t ^?! ix "gainR" . _Double . to realToFrac)
             , _tempMute = False
             })

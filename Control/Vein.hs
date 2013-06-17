@@ -1,5 +1,5 @@
 {-# LANGUAGE Rank2Types #-}
-module Vein (Vein(..)) where
+module Control.Vein (Vein(..)) where
 
 import qualified Control.Category
 import Control.Arrow
