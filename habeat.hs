@@ -16,6 +16,14 @@ import Process
 import Interface
 import Data.Text.Lens
 import qualified Data.Aeson as JSON
+import System.IO.Unsafe
+import Data.Function
+import Control.Vein
+import Vein.Filter
+import Control.Bool
+
+theLPF :: MVar (Vein m (Wave, BiquadParam) Wave)
+theLPF = unsafePerformIO $ newMVar biQuadFilter
 
 runBeat :: Int -> Int -> StateT World PadKontrol ()
 runBeat bar n = do
@@ -48,21 +56,30 @@ play runner mw b = do
 audioCallback :: (forall a. PadKontrol a -> IO a) -> MVar World -> StreamCallback CFloat CFloat
 audioCallback runner mw _ _ frames _ out = forM_ [0..fromIntegral frames-1] write >> return Continue where
     write bi = do
-        V2 l r <- fmap (IM.foldr (+) zero) $ do
+        pre <- fmap (IM.foldr (+) zero) $ do
             ts <- view tracks <$> readMVar mw
             iforM ts $ \i s -> do
                 (a, s') <- flip runStateT s runTrack
                 stateToMVar mw $ tracks . ix i .= s'
                 return (a * view trackGain s)
 
-        pokeElemOff out (2 * bi) l
-        pokeElemOff out (2 * bi + 1) r
+        fx <- view masterFX <$> readMVar mw
+        stateToMVar mw $ runVein fx pre $ \(V2 postl postr) cont -> do
+            liftIO $ pokeElemOff out (2 * bi) postl
+            liftIO $ pokeElemOff out (2 * bi + 1) postr
+            masterFX .= cont
 
         world <- readMVar mw
         case world ^. playMode of
             Just (Play, b) -> play runner mw b
             Just (Record, b) -> play runner mw b
             _ -> return ()
+
+theMaster :: Vein (StateT World IO) Wave Wave
+theMaster = Vein $ \i cont -> do
+    v <- liftIO (takeMVar theLPF)
+    p <- use currentBiquadParam
+    runVein v (i, p) $ \o v' -> liftIO (putMVar theLPF v') >> cont o theMaster
 
 appMain :: MVar World -> IO (Either Error ())
 appMain mw = do
@@ -106,6 +123,8 @@ loadProject path = do
             , _clockDur = undefined
             , _clock = 0
             , _tracks = IM.fromList ts
+            , _masterFX = theMaster
+            , _currentBiquadParam = BiquadParam 1 0 0 1 0 0
             , deviceId = v ^?! ix "device" . _Integer . from enum
         } & _BPM .~ v ^?! ix "bpm" . _Double
 

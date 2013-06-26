@@ -26,6 +26,10 @@ acceptEvent mw _ event = stateToMVar mw $ do
         (_, ButtonDown ButtonRelVal) -> endFlag .= True
         (EditPart i, Knob1 f) -> tracks . ix i . _Volume .= realToFrac f
         (EditPart i, Knob2 f) -> tracks . ix i . _Pan .= realToFrac f
+        (Master, XYPad x y) -> do
+            currentBiquadParam .= lowPass (FilterParam (22000 * exp ((realToFrac x - 1) * 6)) 1.0)
+--        (Master, XYTouch) -> currentBiquadParam .= BiquadParam 1 0 0 1 0 0
+--        (Master, XYRelease) -> currentBiquadParam .= BiquadParam 1 0 0 1 0 0
         (_, JogCW) -> _BPM += 1
         (_, JogCCW) -> _BPM -= 1
         _ -> return ()

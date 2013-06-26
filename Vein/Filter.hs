@@ -2,37 +2,43 @@
 module Vein.Filter where
 
 import Control.Vein
-import Types
 import Linear
+import Debug.Trace
+import Foreign.C.Types
+
+type Wave = V2 CFloat
 
 data FilterParam = FilterParam
     { _filterCutOff :: CFloat
     , _filterQ :: CFloat
     }
 
-mkFilter :: (forall r. CFloat -> CFloat -> (CFloat -> CFloat -> CFloat -> CFloat -> CFloat -> CFloat -> r) -> r)
-    -> Vein m (Wave, FilterParam) Wave
-mkFilter f = go 0 0 0 0 where
-    go x' x'' y' y'' = Vein $ \(x, FilterParam freq q) cont -> let omega = 2 * pi / 44100 * freq
-        in f omega (sin omega / q) $ \a0 a1 a2 b0 b1 b2 ->
-            let y = (b0 *^ x + b1 *^ x' + b2 *^ x'' - a1 *^ y' - a2 *^ y'') ^* (1/a0)
-                in cont y (go x x' y y')
+data BiquadParam = BiquadParam CFloat CFloat CFloat CFloat CFloat CFloat
 
-lowPass :: Vein m (Wave, FilterParam) Wave
-lowPass = mkFilter $ \w a r -> let v = 1 - cos w in r (1 + a) (-2 * cos w) (1 - a) (v / 2) v (v / 2)
+biQuadHelper :: (CFloat -> CFloat -> BiquadParam) -> FilterParam -> BiquadParam
+biQuadHelper f (FilterParam freq q) = let omega = 2 * pi * freq / 44100 in f omega (sin omega / q / 2) 
 
-highPass :: Vein m (Wave, FilterParam) Wave
-highPass = mkFilter $ \w a r -> let v = 1 + cos w in r (1 + a) (-2 * cos w) (1 - a) (v / 2) v (v / 2)
+biQuadFilter :: Vein m (Wave, BiquadParam) Wave
+biQuadFilter = go 0 0 0 0 where
+    go x' x'' y' y'' = Vein $ \(x, BiquadParam a0 a1 a2 b0 b1 b2) cont -> do
+        let y = (b0 *^ x + b1 *^ x' + b2 *^ x'' - a1 *^ y' - a2 *^ y'') ^* (1/a0)
+        cont y $ go x x' y y' 
 
-bandPass :: Vein m (Wave, FilterParam) Wave
-bandPass = mkFilter $ \w a r -> r (1 + a) (-2 * cos w) (1 - a) (sin w / 2) 0 (sin w / 2)
+lowPass :: FilterParam -> BiquadParam
+lowPass = biQuadHelper $ \w a -> let v = 1 - cos w in BiquadParam (1 + a) (-2 * cos w) (1 - a) (v / 2) v (v / 2)
 
-notch :: Vein m (Wave, FilterParam) Wave
-notch = mkFilter $ \w a r -> r (1 + a) (-2 * cos w) (1 - a) 1 (-2 * cos w) 1
+highPass :: FilterParam -> BiquadParam
+highPass = biQuadHelper $ \w a -> let v = 1 + cos w in BiquadParam (1 + a) (-2 * cos w) (1 - a) (v / 2) v (v / 2)
 
-allPass :: Vein m (Wave, FilterParam) Wave
-allPass = mkFilter $ \w a r -> r (1 + a) (-2 * cos w) (1 - a) (1 - a) (-2 * cos w) (1 + a)
+bandPass :: FilterParam -> BiquadParam
+bandPass = biQuadHelper $ \w a -> BiquadParam (1 + a) (-2 * cos w) (1 - a) (sin w / 2) 0 (sin w / 2)
 
-peaking :: CFloat -> Vein m (Wave, FilterParam) Wave
-peaking gain = mkFilter $ \w a r -> r (1 + a * g) (-2 * cos w) (1 - a * g)
+notch :: FilterParam -> BiquadParam
+notch = biQuadHelper $ \w a -> BiquadParam (1 + a) (-2 * cos w) (1 - a) 1 (-2 * cos w) 1
+
+allPass :: FilterParam -> BiquadParam
+allPass = biQuadHelper $ \w a -> BiquadParam (1 + a) (-2 * cos w) (1 - a) (1 - a) (-2 * cos w) (1 + a)
+
+peaking :: CFloat -> FilterParam -> BiquadParam
+peaking gain = biQuadHelper $ \w a -> BiquadParam (1 + a * g) (-2 * cos w) (1 - a * g)
     (1 + a * g) (-2 * cos w) (1 - a * g) where g = sqrt $ 10 ** (gain / 20)

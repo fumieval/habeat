@@ -22,7 +22,10 @@ module Types (
     , clock
     , beat
     , stateToMVar
+    , currentBiquadParam
+    , masterFX
     , _BPM
+    , module Vein.Filter
     , module Control.Lens
     , module Control.Applicative
     , module Control.Monad
@@ -41,8 +44,7 @@ import qualified Data.IntMap as IM
 import Control.Monad.IO.Class
 import Control.Concurrent.MVar
 import Control.Monad.State.Strict
-
-type Wave = V2 CFloat
+import Vein.Filter
 
 data Track = Track
     { _trackName :: String
@@ -81,10 +83,11 @@ data World = World
     { _tracks :: IM.IntMap Track
     , _endFlag :: Bool
     , _uiMode :: UIMode
-    , _cutoff :: Maybe CFloat
     , _playMode :: Maybe (PlayMode, Int)
     , _clockDur :: Int
     , _clock :: Int
+    , _currentBiquadParam :: BiquadParam
+    , _masterFX :: Vein (StateT World IO) Wave Wave
     , deviceId :: Int
     }
 makeLenses ''World
